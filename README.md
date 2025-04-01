@@ -23,16 +23,21 @@ Before running the scripts, ensure you have the required dependencies installed 
 ## Preprocessing
 Run the following scripts in sequence to preprocess the data:
 ```bash
-python Phyml_BIONJ_startingTrees.py
-python SPR_and_lls.py
-python collect_features.py
+python Phyml_BIONJ_startingTrees.py -f {real_msa.phy}
+python SPR_and_lls.py -ds {training_data/}
+python collect_features.py -ds {training_data/}
+```
+The individual scripts can also be run using pipeline.py over folders using:
+```bash
+python pipeline.py -tf {training_data/}
 ```
 
 ## Learning Algorithm
 Once preprocessing is complete, apply the learning algorithm:
 ```bash
-python RF_learning_algorithm.py
+python RF_learning_algorithm.py -p {project_path/}
 ```
+You can also set PROJECT_PATH in defs_PhyAI.py
 
 ## Requirements
 - Python 3.x
