@@ -1,0 +1,50 @@
+#!/bin/bash
+#SBATCH --partition=batch          # batch-deter for CPU needs | gpu for GPU needs
+#SBATCH --job-name=rf_valset       # MODIFY TO MEANINGFUL NAME
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=48
+#SBATCH --output=training_data/hybrid_testing/sampled_300/training_data/results/valset_validation_%A.log
+#SBATCH --error=training_data/hybrid_testing/sampled_300/training_data/results/valset_validation_%A.err
+
+
+start_time=$(date +%s)
+echo "Start time: $(date)"
+
+cd /scratch/ctcomia/mlpti
+module load conda
+source activate base
+conda activate /scratch/ctcomia/ctcomia-env        #Set conda environment to your env
+
+echo "SLURM_JOBID=$SLURM_JOBID"
+echo "SLURM_JOB_NODELIST=$SLURM_JOB_NODELIST"
+echo "SLURM_NNODES=$SLURM_NNODES"
+echo "Working directory=$SLURM_SUBMIT_DIR"
+models=("SVM" "KNN" "BR" "RFR" "Lasso")
+MODEL="RFR"
+
+#n_estimators=("60" "70" "90" "90" "90") 
+#max_features=("0.6" "0.5" "0.4" "0.3" "0.5")
+#temp_val=${temp_arr[${SLURM_ARRAY_TASK_ID}]}
+#n=${n_estimators[${SLURM_ARRAY_TASK_ID}]}
+#mf=${max_features[${SLURM_ARRAY_TASK_ID}]}
+
+# Select model and path based on job array index
+
+input_dir="/scratch/ctcomia/mlpti/training_data/hybrid_testing/sampled_300/training_data/" 
+# Run the script with the selected parameters
+echo "Running training with n_estimator 100 max_features 0.4"
+python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/rf_with_gridSearch.py \
+    --input_features_dir $input_dir \
+    --output_scores_csv ${input_dir}results/validation_n100_mf0.4_scores_per_ds.csv \
+    --output_preds_csv ${input_dir}results/validation_n100_mf0.4_preds_merged.csv \
+    --model "RFR" \
+    --no_gridsearch
+    --validation_set --validation_set_path "/scratch/ctcomia/mlpti/training_data/hybrid_testing/validation_set100/all_features_for_validation.csv " \
+#    --transform_target
+# --- Calculate and Print Elapsed Time ---
+end_time=$(date +%s)
+echo "End time: $(date)"                 # Human-readable end time
+p_dataset_date=$((end_time - start_time))
+echo "Total elapsed time for task $SLURM_ARRAY_TASK_ID: ${p_dataset_date} seconds"
+echo "-----------------------------------------------------"
+

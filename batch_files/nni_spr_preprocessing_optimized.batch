@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH --partition=batch         
+#SBATCH --job-name=r2_opt_hybrid
+#SBATCH --cpus-per-task=4
+#SBATCH --output=optimized/r2_valset_preproc_%A_%a.log           
+#SBATCH --error=optimized/r2_valset_preproc_%A_%a.err
+#SBATCH --array=0-99		#modify size of array according to number of folders
+
+cd /scratch/ctcomia/mlpti
+module load conda
+source activate base
+conda activate /scratch/ctcomia/ctcomia-env        #Set conda environment to your env
+
+echo "SLURM_JOBID="$SLURM_JOBID
+echo "Working directory = "$SLURM_SUBMIT_DIR
+
+DATASET_PATH=/scratch/ctcomia/mlpti/training_data/hybrid_testing/validation_set100/training_data
+DATASETS=($(ls ${DATASET_PATH}/ )) # List of directories containing msa, starting tree, and nni files
+
+MSA_FOLDER=${DATASET_PATH}/${DATASETS[${SLURM_ARRAY_TASK_ID}]}
+
+MSA_FILE="${MSA_FOLDER}/real_msa.phy"
+STARTING_TREE_FILE="${MSA_FOLDER}/real_msa.phy_phyml_tree_bionj.txt"
+STATS_FILE="${MSA_FOLDER}/real_msa.phy_phyml_stats_bionj.txt"
+NNI_TREES_FILE="${MSA_FOLDER}/nni_trees_top20.csv"
+
+if [ ! -f "${NNI_TREES_FILE}" ]; then
+  echo "File not found. Proceeding with tree generation steps..."
+    # STEP 1: Generate starting trees
+    python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/Phyml_BIONJ_startingTrees.py -f "${MSA_FILE}"
+    
+    # STEP 2: Generate NNI trees from bionj file
+    python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/optimized_nni.py -f "$STARTING_TREE_FILE"
+    
+    # STEP 3: Find all NNI output trees and run spr and collect feature scripts sequentially
+    python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/optimized_run_spr_on_trees.py \
+        --input_trees=${NNI_TREES_FILE} \
+        --msa=${MSA_FILE} \
+        --params_stats_file=${STATS_FILE}
+    
+    # STEP 4: Find all NNI output trees and run spr and collect feature scripts sequentially
+    python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/optimized_collect_features.py \
+        --nni_tree_path=${NNI_TREES_FILE} \
+        --orig_ds_id=${MSA_FOLDER} 
+    
+    echo "Done processing ${MSA_FOLDER}"
+else
+  echo "File ${NNI_TREES_FILE} already exists. Skipping generation steps."
+fi
+
+# --- End of Script ---
+echo "Script finished."

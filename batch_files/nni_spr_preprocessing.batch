@@ -1,0 +1,82 @@
+#!/bin/bash
+#SBATCH --partition=batch         
+#SBATCH --job-name=mlpti_hybrid            
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=2
+#SBATCH --output=mlpti_hybrid_%A.log           
+#SBATCH --error=mlpti_hybrid_%A.err
+#SBATCH --array=0			#modify size of array according to number of folders
+
+cd /scratch/ctcomia/mlpti
+module load conda
+source activate base
+conda activate /scratch/ctcomia/ctcomia-env        #Set conda environment to your env
+
+echo "SLURM_JOBID="$SLURM_JOBID
+echo "Working directory = "$SLURM_SUBMIT_DIR
+
+DATASET_PATH=/scratch/ctcomia/mlpti/training_data/hybrid_testing/sampled_300/training_data/Aesculus_5
+#DATASETS=($(ls ${DATASET_PATH}/ )) # List of directories containing msa, starting tree, and nni files
+
+MSA_FOLDER=${DATASET_PATH} #/${DATASETS[${SLURM_ARRAY_TASK_ID}]}
+
+MSA_FILE="${MSA_FOLDER}/real_msa.phy"
+STARTING_TREE_FILE="${MSA_FOLDER}/real_msa.phy_phyml_tree_bionj.txt"
+
+# STEP 1: Generate starting trees
+python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/Phyml_BIONJ_startingTrees.py -f "${MSA_FILE}"
+
+# STEP 2: Generate NNI trees from bionj file
+python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/NNI.py -f "$STARTING_TREE_FILE"
+
+# STEP 3: Find all NNI output trees and run spr and collect feature scripts sequentially
+NNI_TREES=($(find "${MSA_FOLDER}/NNI" -name 'optimized_*.raxml.bestTree'))
+echo "Found ${#NNI_TREES[@]} NNI trees to process."
+
+for nni_tree_file in "${NNI_TREES[@]}"; do
+    echo "Processing ${nni_tree_file}..."
+    # Extract the index number (e.g., 1 from optimized_1.raxml.bestTree)
+    index=$(basename "${nni_tree_file}" | sed -n 's/optimized_\([0-9]*\)\.raxml\.bestTree/\1/p')
+
+    if [ -z "$index" ]; then
+        echo "Warning: Could not extract index from ${nni_tree_file}. Skipping."
+        continue
+    fi
+
+    # Define a unique output directory for this NNI tree's SPR results
+    HYBRID_DIR="${MSA_FOLDER}/Hybrid_NNI_SPR"
+    STATS_FILE="${MSA_FOLDER}/real_msa.phy_phyml_stats_bionj.txt" # Adjust if filename differs
+
+    # Define the .bestTree file and the suffix for the csv files
+    best_tree_file="${MSA_FOLDER}/NNI/optimized_${index}.raxml.bestTree"
+    best_tree_suffix="${HYBRID_DIR}/${index}"
+
+    echo "-----------------------------------------------------"
+    echo "Processing NNI Tree: $nni_tree_file"
+    echo "Outputting NNI SPR results to csv files in: $HYBRID_DIR"
+
+    # Run the Python scripts (SPR + COLLECT FEATURES)
+    python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/run_spr_on_tree.py \
+        --input_tree "$nni_tree_file" \
+        --msa "$MSA_FILE" \
+        --params_stats_file "$STATS_FILE" \
+        --output_dir "$HYBRID_DIR"
+    echo "Finished generating spr neighbors: $nni_tree_file"
+    python /scratch/ctcomia/mlpti/code/hybrid_nni_spr/adapted_collect_features.py \
+        --nni "$best_tree_file" \
+        -p "$best_tree_suffix" \
+    	--orig_ds_id "$nni_tree_file"
+    echo "Finished collecting features: $nni_tree_file"
+    echo "-----------------------------------------------------"
+
+    # Optional: Add error checking based on the python script's exit code
+    if [ $? -ne 0 ]; then
+        echo "Error processing $nni_tree_file. Check logs."
+        # Decide whether to continue or exit the loop
+        # exit 1 # Exit on first error
+    fi
+    echo "" # Add a newline for readability
+done
+echo "Done processing ${MSA_FOLDER} and will proceed to deleting NNI data"
+rm -r ${MSA_FOLDER}/NNI
+#echo "Successfully deleted NNI folder in ${MSA_FOLDER}"

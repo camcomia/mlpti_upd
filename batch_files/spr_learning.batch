@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --partition=batch          # batch-deter for CPU needs | gpu for GPU needs
+#SBATCH --job-name=mlpti_validate        # MODIFY TO MEANINGFUL NAME
+#SBATCH --nodes=1                  # Put number of nodes needed here | max = 4 for batch-deter, max = 1 for gpu
+#SBATCH --ntasks-per-node=1        # Put number of cores per node | max = 6
+#SBATCH --cpus-per-task=24          # Put number of CPUs per task here | max = 6 
+#SBATCH --output=valset_%A.log  # Unique output log per job array task rf_learning_{jobID}_{taskArrayID}
+#SBATCH --error=valset_%A_err.log
+
+cd /scratch/ctcomia/mlpti
+#rm rf_learning_$SLURM_ARRAY_TASK_ID.log  # OPTIONAL: Clear old log file
+
+#module load conda               # Load conda
+source ~/.bashrc            # Set conda environment to base env
+conda activate /home/ctcomia/ctcomia-env  # MODIFY THIS LINE TO REFLECT YOUR ENV.
+
+echo "SLURM_JOBID=$SLURM_JOBID"
+echo "SLURM_JOB_NODELIST=$SLURM_JOB_NODELIST"
+echo "SLURM_NNODES=$SLURM_NNODES"
+echo "Working directory=$SLURM_SUBMIT_DIR"
+
+# Define models and project paths
+models=("KNN" "RFR" "Lasso")
+paths="/scratch/ctcomia/mlpti/training_data/processed_data/data_"
+#paths="/scratch/ctcomia/mlpti/training_data/groups/itay_mayrose/danaazouri/PhyAI/submission_data" 
+       #"/scratch/ctcomia/mlpti/training_data/groups/itay_mayrose/danaazouri/PhyAI/submission_data/dummy/test_subset"
+	#"/scratch/ctcomia/mlpti/training_data/calibration_expr/knn" \
+       #"/scratch/ctcomia/mlpti/training_data/calibration_expr/svm" \
+       #"/scratch/ctcomia/mlpti/training_data/calibration_expr/br" \
+       #"/scratch/ctcomia/mlpti/training_data/calibration_expr/lasso"
+#)
+
+# Select model and path based on job array index
+MODEL=${models[$SLURM_ARRAY_TASK_ID]}
+#PROJECT_PATH=${paths[$SLURM_ARRAY_TASK_ID]}
+
+# Run the script with the selected parameters
+python /scratch/ctcomia/mlpti/code/RF_learning_algorithm.py -m "RFR" -p $paths -valpath "/scratch/ctcomia/mlpti/training_data/groups/itay_mayrose/danaazouri/PhyAI/submission_data/validation_testing/learning_all_moves_step1.csv" -val
