@@ -194,11 +194,11 @@ def apply_KNN(df_test, df_train, move_type, features):
 	print(f"Number of neighbors: {n_neighbors}")
 
 	params = {
-		"n_neighbors": 5,
-#		"weights": "uniform",
-#		"algorithm": "auto",
-#		"leaf_size": 30,
-#		"p": 2
+		"n_neighbors": 10,
+		"weights": "uniform",
+		"algorithm": "auto",
+		"leaf_size": 30,
+		"p": 2
 	}
 
 	# KNN with k=5
@@ -235,8 +235,8 @@ def apply_SVM(df_test, df_train, move_type, features):
 	params = {
 		"kernel": 'rbf', 
 		"C": 0.1, 
-		"epsilon": 5e-6, # epsilon=5e-6 is the value from Azouri study
-#		"gamma": 'scale' # Automatically scales based on n_features * X.var()
+		"epsilon": 0.1, # epsilon=5e-6 is the value from Azouri study
+		"gamma": 'scale' # Automatically scales based on n_features * X.var()
 	}
     
 	start_time = time.time()
@@ -271,15 +271,7 @@ def apply_BayesianRidge(df_test, df_train, move_type, features):
 	X_train_scaled = scaler.fit_transform(X_train)
 	X_test_scaled = scaler.transform(X_test)
 
-	params = {
-		# "n_iter": 300,
-        #"tol": 1e-3,
-        #"alpha_1": 1e-6,
-        #"alpha_2": 1e-6,
-        #"lambda_1": 1e-6,
-        #"lambda_2": 1e-6,
-        #"compute_score": False
-	}
+	params = {}
     
 	start_time = time.time()
 	regressor = BayesianRidge(**params).fit(X_train_scaled, y_train)
@@ -313,10 +305,10 @@ def apply_Lasso(df_test, df_train, move_type, features):
 	X_test_scaled = scaler.transform(X_test)
 
 	params = {
-#		"alpha": 1e-4,
-#		"max_iter": 5000,
-#		"tol": 1e-6,
-#		"selection": "random"
+		"alpha": 1e-4,
+		"max_iter": 5000,
+		"tol": 1e-6,
+		"selection": "random"
     }
     
 	start_time = time.time()
@@ -362,7 +354,7 @@ def truncate(df):
 	return df.reset_index(drop=True), groups_ids, test_batch_size
 
 
-def cross_validation_RF(df, move_type, features, model, trans=False, validation_set=False, random=False, scale_score=False):
+def cross_validation_RF(df, move_type, features, model, trans=False, validation_set=False, random=False, scale_score=False, valsetpath=''):
 	df, groups_ids, test_batch_size = truncate(df)
 	res_dict = {}
 	oobs, f_imps, = [], []
@@ -402,7 +394,8 @@ def cross_validation_RF(df, move_type, features, model, trans=False, validation_
 	else:     # namely if validation set strategy, and not cross validation
 		# Camille: VALSET_FEATURES_LABEL is not defined in original code. I'm assuming that validation set strat was never used.
 		df_train = df
-		df_test = pd.read_csv(VALSET_FEATURES_LABEL)
+		print(f"df_test: {valsetpath}")
+		df_test = pd.read_csv(valsetpath,  dtype=types_dict)
 		df_test = fit_transformation(df_test, move_type, trans).dropna()
 		y_pred, oob, f_imp = apply_RFR(df_test, df_train, move_type, features)
 		
@@ -521,6 +514,7 @@ if __name__ == '__main__':
 	parser.add_argument('--transform_target', '-trans', default=False, action='store_true')
 	parser.add_argument('--model', '-m', type=str, default='RFR', choices=['RFR', 'KNN', 'SVM', 'BR', 'Lasso'], help='Specify the learning model to use')
 	parser.add_argument('--project_path', '-p', type=str, default=PROJECT_PATH, help='Specify the project path')
+	parser.add_argument('--validation_set_path', '-valpath', type=str, default=None, help='Specify the path to the validation set')
 	args = parser.parse_args()
 
 	move_type, st = "merged", "1"
@@ -530,7 +524,7 @@ if __name__ == '__main__':
 	df_path = args.project_path + "/" + LEARNING_DATA.format("all_moves", st)
 	df_prune_features = args.project_path +  "/" + LEARNING_DATA.format("all_moves_prune", st)
 	df_rgft_features = args.project_path +  "/" + LEARNING_DATA.format("all_moves_rgft", st)
-	datapath = args.project_path + "/training_data/"
+	datapath = args.project_path + "/training_data/" 
 
 	if not os.path.exists(df_path):
 		parse_relevant_summaries_for_learning(datapath, df_prune_features, "prune", st,)
@@ -541,6 +535,7 @@ if __name__ == '__main__':
 		complete_df[LABEL.format(move_type)] = complete_df[LABEL.format("prune")]
 		complete_df.to_csv(df_path)
 
+	print(f"df_train: {df_path}")
 	df_learning = pd.read_csv(df_path, dtype=types_dict)
 	df_learning = fit_transformation(df_learning, move_type, trans=args.transform_target)
 	
@@ -551,12 +546,13 @@ if __name__ == '__main__':
 	
 	suf = "_{}_validation_set".format(st) if args.validation_set else "_{}".format(st)
 	iftrans = "" if not args.transform_target else "_ytransformed"
-	suf += iftrans + "_" + args.model
-	csv_with_scores = args.project_path + SCORES_PER_DS.format(str(len(features))+ suf)
-	csv_with_preds = args.project_path + DATA_WITH_PREDS.format(str(len(features)) + suf)
+	suf += iftrans + "_" + args.model 
+	csv_with_scores = args.project_path + "/" + SCORES_PER_DS.format(str(len(features))+ suf)
+	csv_with_preds = args.project_path + "/" + DATA_WITH_PREDS.format(str(len(features)) + suf)
+	print(f"df_train: {df_path}\ncsv_with_scores: {csv_with_scores}\n args.validation_set:{args.validation_set}")
 	if not os.path.exists(csv_with_scores) or args.validation_set:
 		print("*@*@*@* scores for step{} with {} features are not available, thus applying learning".format(suf, len(features)))
-		res_dict, df_out = cross_validation_RF(df_learning, move_type, features, model=args.model, trans=args.transform_target, validation_set=args.validation_set, random=False, scale_score=True)
+		res_dict, df_out = cross_validation_RF(df_learning, move_type, features, model=args.model, trans=args.transform_target, validation_set=args.validation_set, random=False, scale_score=True, valsetpath=args.validation_set_path)
 		df_out.to_csv(csv_with_preds)
 
 		df_datasets =  pd.DataFrame(columns=["init"])
