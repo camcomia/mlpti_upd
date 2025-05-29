@@ -53,9 +53,9 @@ class ProcessManager:
         start_time = datetime.datetime.now()
 
         tasks = [
-            ("Create Starting Tree", f'python Phyml_BIONJ_startingTrees.py -f {dataset_path}/real_msa.phy'),
-            ("Generate SPR Trees", f'python SPR_and_lls.py --dataset_path "{dataset_path}/"'),
-            ("Collect Features", f'python collect_features.py --dataset_path "{dataset_path}/"')
+            ("Create Starting Tree", f'python code/Phyml_BIONJ_startingTrees.py -f {dataset_path}/real_msa.phy'),
+            ("Generate SPR Trees", f'python code/SPR_and_lls.py --dataset_path "{dataset_path}/"'),
+            ("Collect Features", f'python code/collect_features.py --dataset_path "{dataset_path}/"')
         ]
         for task_name, command in tasks:
             self.execute_command(command, dataset_path, task_name)

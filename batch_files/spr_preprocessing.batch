@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --partition=batch         
+#SBATCH --job-name=mlpti_all_data                
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --output=pipeline_test_array.log           
+#SBATCH --error=pipeline_err_test_array.log
+#SBATCH --array=0-999			#modify size of array according to number of folders
+
+cd /home/ctcomia/mlpti          	#MODIFY TO YOUR STAGING DIRECTORY
+#rm pipeline.log                        #OPTIONAL LINE to clear old out.log file.
+
+source ~/.bashrc
+#module load conda                       #Load conda
+#source activate base                    #Set conda environment to base env
+conda activate /home/ctcomia/ctcomia-env        #Set conda environment to your env. MODIFY THIS LINE TO REFLECT YOUR ENV.
+
+echo "SLURM_JOBID="$SLURM_JOBID
+echo "Working directory = "$SLURM_SUBMIT_DIR
+echo "Task ID=${SLURM_ARRAY_TASK_ID}---${DATASETS[${SLURM_ARRAY_TASK_ID}]}"
+
+DATASET_PATH=/scratch/ctcomia/mlpti/training_data/groups/itay_mayrose/danaazouri/PhyAI/submission_data/validation_data
+DATASETS=($(ls ${DATASET_PATH}/ ))
+INPUT_DIR=${DATASET_PATH}/${DATASETS[${SLURM_ARRAY_TASK_ID}]}
+
+/scratch/ctcomia/ctcomia-env/bin/python code/Phyml_BIONJ_startingTrees.py -f "${INPUT_DIR}/real_msa.phy" > ${INPUT_DIR}/results.txt
+/scratch/ctcomia/ctcomia-env/bin/python code/SPR_and_lls.py --dataset_path "${INPUT_DIR}/" >> ${INPUT_DIR}/results.txt
+/scratch/ctcomia/ctcomia-env/bin/python code/collect_features.py --dataset_path "${INPUT_DIR}/" >> ${INPUT_DIR}/results.txt
+
+

@@ -1,0 +1,47 @@
+#!/bin/bash
+#SBATCH --partition=batch          # batch-deter for CPU needs | gpu for GPU needs
+#SBATCH --job-name=tbr_maxFeat
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=24
+#SBATCH --output=tbr_logs/hybrid_training_min_samples_leaf_%a.log  # Unique output log per job array task rf_learning_{jobID}
+#SBATCH --error=tbr_logs/hybrid_training_min_samples_leaf_%a.err
+#SBATCH --array=0-2
+start_time=$(date +%s)
+echo "Start time: $(date)"
+
+cd /scratch/ctcomia/mlpti
+module load conda
+source activate base
+conda activate /scratch/ctcomia/ctcomia-env        #Set conda environment to your env
+
+echo "SLURM_JOBID=$SLURM_JOBID"
+echo "SLURM_JOB_NODELIST=$SLURM_JOB_NODELIST"
+echo "SLURM_NNODES=$SLURM_NNODES"
+echo "Working directory=$SLURM_SUBMIT_DIR"
+models=("SVM" "KNN" "BR" "RFR" "Lasso")
+MODEL=${models[${SLURM_ARRAY_TASK_ID}]}
+temp_arr=(3 5 10)
+temp_val=${temp_arr[${SLURM_ARRAY_TASK_ID}]}
+
+# Select model and path based on job array index
+
+input_dir="/scratch/ctcomia/mlpti/training_data/hybrid_testing/20_data/" 
+
+# Run the script with the selected parameters
+srun python /scratch/ctcomia/mlpti/code/tbr/learning.py \
+    --input_features_dir $input_dir \
+    --output_scores_csv ${input_dir}tbr_${MODEL}min_samples_leaf${temp_val}_scores_per_ds.csv \
+    --output_preds_csv ${input_dir}tbr_${MODEL}min_samples_leaf${temp_val}_preds_merged.csv \
+    --temp_param ${temp_val}
+#    --model ${MODEL} \
+#    -n ${rfe}
+#    --no_gridsearch
+#    --validation_set --validation_set_path "/scratch/ctcomia/mlpti/code/hybrid_nni_spr/output.csv" \
+#    --transform_target
+# --- Calculate and Print Elapsed Time ---
+end_time=$(date +%s)
+echo "End time: $(date)"                 # Human-readable end time
+p_dataset_date=$((end_time - start_time))
+echo "Total elapsed time for task $SLURM_ARRAY_TASK_ID: ${p_dataset_date} seconds"
+echo "-----------------------------------------------------"
+
