@@ -49,6 +49,14 @@ You can also set PROJECT_PATH in defs_PhyAI.py
 - Ensure all input files are in the correct format before running the scripts.
 - Refer to the comments in each script for additional configuration options.
 
+## Acknowledgments
+
+This project makes use of code and ideas from:
+**Azouri, D., Abadi, S., Mansour, Y. et al.** *Harnessing machine learning to guide phylogenetic-tree search algorithms*. Nat Commun 12, 1983 (2021). https://doi.org/10.1038/s41467-021-22073-8
+
+Original scripts and supplementary materials are available at: [https://osf.io/b8aqj/](https://osf.io/b8aqj/)
+
+We gratefully acknowledge the use of their scripts as part of the foundation for our implementation.
 
 ## Contact
 For questions or issues, please contact the repository maintainer.
