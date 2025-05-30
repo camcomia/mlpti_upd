@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --partition=batch
+#SBATCH --job-name=mlhyb2 #CHANGE THIS
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/machinelearning/log_hybrid_nniparams_%A_%a.log
+#SBATCH --error=logs/machinelearning/log_hybrid_nniparams_%A_%a.err
+#SBATCH --array=0-1
+
+
+# Go to project directory
+cd /scratch/epkasilag/SPR_NNI/HPCv2
+
+# Load conda and activate environment
+module load conda
+source activate base
+conda activate /scratch/epkasilag/epkasilag-env
+
+echo "SLURM_JOBID="$SLURM_JOBID
+echo "Working directory = "$SLURM_SUBMIT_DIR
+
+# Define list of models
+# models=("RF" "KNN" "SVM")
+models=("LASSO" "BAYESIAN")
+
+# Select model based on SLURM_ARRAY_TASK_ID
+model=${models[$SLURM_ARRAY_TASK_ID]}
+
+DATASET_PATH=/scratch/epkasilag/SPR_NNI/HPCv2/training_folder_hybrid #CHANGE THIS
+
+echo "START MACHINE LEARNING $DATASET_PATH: $(date +"%c")"
+
+python /scratch/epkasilag/SPR_NNI/HPCv2/machine_learning.py -ds "${DATASET_PATH}" --model "${model}"
+
+echo "DONE PROCESSING [$model]: $(date +"%c")"

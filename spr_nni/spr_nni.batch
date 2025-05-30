@@ -1,0 +1,50 @@
+#!/bin/bash
+#SBATCH --partition=batch
+#SBATCH --job-name=val100 #CHANGE THIS
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --output=logs/validation100/log_%a.log #CHANGE THIS
+#SBATCH --error=logs/validation100/log_%a.err #CHANGE THIS
+#SBATCH --array=0-99
+
+cd /scratch/epkasilag/SPR_NNI/HPCv2 #CHANGE THIS
+module load conda
+source activate base
+conda activate /scratch/epkasilag/epkasilag-env
+
+echo "SLURM_JOBID="$SLURM_JOBID
+echo "Working directory = "$SLURM_SUBMIT_DIR
+
+DATASET_PATH=/scratch/epkasilag/SPR_NNI/HPCv2/validation_set100 #CHANGE THIS
+DATASETS=($(ls ${DATASET_PATH}/))
+
+dataset=${DATASETS[$SLURM_ARRAY_TASK_ID]}
+MSA_FOLDER="${DATASET_PATH}/${dataset}"
+
+echo "Processing dataset: $dataset"
+echo "START PROCESSING $MSA_FOLDER: $(date +"%c")"
+
+#MULTIPLE SEQUENCE ALIGNMENT
+MSA_FILE="${MSA_FOLDER}/real_msa.phy"
+
+#GENERATING BIONJ STARTING TREES
+python /scratch/epkasilag/SPR_NNI/HPCv2/Phyml_BIONJ_startingTrees.py -f "${MSA_FILE}"
+
+#GENERATING SPR NEIGHBORS
+python /scratch/epkasilag/SPR_NNI/HPCv2/generate_SPR_trees.py -ds "${MSA_FOLDER}/"
+
+#REDUCING SPR NEIGHBORS TO 20 percent
+SPR_FOLDER="${DATASET_PATH}/${dataset}/SPR_neighbors"
+python /scratch/epkasilag/SPR_NNI/HPCv2/neighbors_reduction.py -sf "${SPR_FOLDER}"
+
+#GENERATING NNI NEIGHBORS FOR EACH SPR NEIGHBOR
+for sprfolder in "${SPR_FOLDER}"/*; do
+    if [ -d "$sprfolder" ]; then
+        echo "Running on $sprfolder"
+        python /scratch/epkasilag/SPR_NNI/HPCv2/generate_NNI_trees.py -f "${sprfolder}/real_msa.phy_phyml_tree_spr.txt"  
+fi
+done
+
+python /scratch/epkasilag/SPR_NNI/HPCv2/merge_datasets.py -ds "${MSA_FOLDER}/"
+
+echo "DONE PROCESSING $MSA_FOLDER: $(date +"%c")"
